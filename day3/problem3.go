@@ -43,12 +43,10 @@ func main() {
 
 	// multiply
 	for _, match := range matches {
-		fullMatch := match[0] // entire match
-
 		switch {
-		case fullMatch == "do()":
+		case match[0] == "do()":
 			skip = false
-		case fullMatch == "don't()":
+		case match[0] == "don't()":
 			skip = true
 		case len(match) == 4 && !skip:
 			num1, _ := strconv.Atoi(match[2])
