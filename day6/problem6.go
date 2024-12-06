@@ -9,74 +9,113 @@ import (
 )
 
 func main() {
-	// read the input.txt
+	// Read the input.txt
 	file, err := os.Open("input.txt")
 	helpers.ErrCheck(err)
-
 	defer file.Close()
 
-	// turn the map into array of arrays
+	// Turn the map into a 2D slice
 	var guardMap [][]rune
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		guardMap = append(guardMap, []rune(scanner.Text()))
 	}
 
-	// map directions e.g. ^ means up (step down one in array index) > means right (increment positively in array) < means left (step down in the array) v means down (step up one in array index)
+	// Map directions
 	directions := []struct{ x, y int }{
-		{-1, 0}, // up
-		{0, 1},  // right
-		{1, 0},  // down
-		{0, -1}, // left
+		{-1, 0}, // Up
+		{0, 1},  // Right
+		{1, 0},  // Down
+		{0, -1}, // Left
 	}
-	// find the array that contains the ^
-	var x, y, dirIdx int
-	foundGuard := false
 
-	// i is the row in the map j is the column
+	// Find guard's starting position
+	var guardStartPosX, guardStartPosY, dirIdx int
 	for i, row := range guardMap {
-		for j, cell := range row {
-			if cell == '^' {
-				x, y, dirIdx = i, j, 0 // we start facing up so 0 in the directions index
-				foundGuard = true
-				guardMap[i][j] = 'X' // this cell becomes visited because the guard starts there
-				break
-			}
-
-			if foundGuard {
+		for j, col := range row {
+			if col == '^' {
+				guardStartPosX, guardStartPosY, dirIdx = i, j, 0
+				guardMap[i][j] = '.' // Replace '^' with open space
 				break
 			}
 		}
 	}
-	// count++ for each '.' covered the '.' should be changed to an X so if it's visited again the count doesn't get increased
-	// always check what char is next if its a # rotate the guards pointer: if pointer == ^ then pointer == >, if pointer == > then pointer == v, if pointer == v then pointer == <, if pointer == < then pointer == ^
-	// if the next char is nil/out of range or w/e then we break
+	simulateGuardWithObstacle := func(mapCopy [][]rune) bool {
+		visited := make(map[string]bool)
+		x, y, direction := guardStartPosX, guardStartPosY, 0 // Start from the original position and direction
+
+		for {
+			// Track the current state (position and direction)
+			state := fmt.Sprintf("%d,%d,%d", x, y, direction)
+			if visited[state] {
+				fmt.Printf("Loop detected at state: %s\n", state)
+				return true // Loop detected
+			}
+			visited[state] = true
+
+			// Calculate the next position
+			nx, ny := x+directions[direction].x, y+directions[direction].y
+
+			// Check bounds
+			if nx < 0 || ny < 0 || nx >= len(mapCopy) || ny >= len(mapCopy[0]) {
+				return false // Guard leaves the map
+			}
+
+			// Check the next position's contents
+			if mapCopy[nx][ny] == '#' { // Obstacle
+				direction = (direction + 1) % 4 // Turn right
+			} else { // Open space
+				x, y = nx, ny // Move the guard
+			}
+		}
+	}
+
+	// PART 1: Simulate Guard's Movement
 	positionsCovered := 1
-
+	x, y, direction := guardStartPosX, guardStartPosY, dirIdx
 	for {
-		// next position - nx is the row in the map ny is the column
-		nx, ny := x+directions[dirIdx].x, y+directions[dirIdx].y
+		// Calculate the next position
+		nx, ny := x+directions[direction].x, y+directions[direction].y
 
-		// check if it's outside the map
+		// Check bounds
 		if nx < 0 || ny < 0 || nx >= len(guardMap) || ny >= len(guardMap[0]) {
-			fmt.Println("Guard exited the map")
-			break
+			break // Guard leaves the map
 		}
 
-		// check the next positions contents
-		if guardMap[nx][ny] == '#' { // obstacle
-			dirIdx = (dirIdx + 1) % 4 // this basically makes the guard turn right
-			// fmt.Printf("Guard hit obstacle at: %v , %v \n", nx, ny)
-		} else if guardMap[nx][ny] == '.' { // open space
-			guardMap[nx][ny] = 'X'
+		// Check the next position's contents
+		if guardMap[nx][ny] == '#' {
+			direction = (direction + 1) % 4 // Turn right
+		} else if guardMap[nx][ny] == '.' {
+			guardMap[nx][ny] = 'X' // Mark as visited
 			positionsCovered++
-			// move the guard to the new spot
 			x, y = nx, ny
-		} else if guardMap[nx][ny] == 'X' { // already visited just move the guard
+		} else if guardMap[nx][ny] == 'X' {
 			x, y = nx, ny
 		}
 	}
+	fmt.Println("Guard covered this amount of ground:", positionsCovered)
 
-	fmt.Println("Guard covered this amount of ground: ", positionsCovered)
+	// PART 2: Test Obstructions for Loops
+	possibleLoops := 0
+	for i, row := range guardMap {
+		for j, col := range row {
+			if col != '.' {
+				continue
+			}
 
+			// Create a copy of the map with a new obstruction
+			mapCopy := make([][]rune, len(guardMap))
+			for k := range guardMap {
+				mapCopy[k] = make([]rune, len(guardMap[k]))
+				copy(mapCopy[k], guardMap[k])
+			}
+			mapCopy[i][j] = '#' // Place obstruction
+
+			// Simulate and check for a loop
+			if simulateGuardWithObstacle(mapCopy) {
+				possibleLoops++
+			}
+		}
+	}
+	fmt.Println("Possible loops detected:", possibleLoops)
 }
